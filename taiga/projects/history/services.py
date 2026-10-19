@@ -433,7 +433,10 @@ def take_snapshot(obj: object, *, comment: str="", user=None,
             "is_snapshot": need_real_snapshot,
         }
 
-        return entry_model.objects.create(**kwargs)
+        entry = entry_model.objects.create(**kwargs)
+        from .issue_story_sync import mirror_issue_story_activity
+        mirror_issue_story_activity(obj, entry)
+        return entry
 
 
 # High level query api

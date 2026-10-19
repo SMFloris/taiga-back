@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from taiga.projects.attachments.models import Attachment
 from taiga.projects.history.models import HistoryEntry
 from taiga.projects.history.services import (get_history_queryset_by_model_instance,
-                                             make_key_from_model_object)
+                                             make_key_from_model_object, take_snapshot)
 from taiga.projects.issues.models import Issue
 from taiga.projects.notifications.models import Watched
 from taiga.projects.notifications.utils import attach_watchers_to_queryset
@@ -57,6 +57,7 @@ def promote_to_us(source_obj):
 
             _import_votes(obj, us)
 
+        take_snapshot(us, user=us.owner)
         _import_assigned(obj, us)
         _import_comments(obj, us)
         _import_attachments(obj, us, content_type)
@@ -91,8 +92,8 @@ def _import_comments(source_obj, target_obj):
             key=us_key,
             type=entry.type,
             snapshot=None,
-            diff=entry.diff,
-            values=entry.values,
+            diff={},
+            values={},
             comment=entry.comment,
             comment_html=entry.comment_html,
             delete_comment_date=entry.delete_comment_date,
