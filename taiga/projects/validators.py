@@ -8,6 +8,8 @@
 from collections import Counter
 
 from django.db.models import Q
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator
 from django.utils.translation import gettext as _
 
 from taiga.base.api import serializers
@@ -290,7 +292,39 @@ class MembersBulkValidator(ProjectExistsValidator, validators.Validator):
 # Projects
 ######################################################
 
-class ProjectValidator(validators.ModelValidator):
+class CustomLinksValidatorMixin:
+    def validate_custom_links(self, attrs, source):
+        if source not in attrs:
+            return attrs
+        links = attrs[source]
+        if not isinstance(links, list) or len(links) > 20:
+            raise ValidationError(_("Provide a list of at most 20 custom links."))
+
+        normalized = []
+        validate_url = URLValidator(schemes=["http", "https"])
+        for link in links:
+            if not isinstance(link, dict):
+                raise ValidationError(_("Each custom link must contain a name and URL."))
+            name = link.get("name")
+            url = link.get("url")
+            new_tab = link.get("open_in_new_tab", False)
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+                raise ValidationError(_("Custom link names must contain 1 to 100 characters."))
+            if not isinstance(url, str) or len(url) > 2048:
+                raise ValidationError(_("Provide a valid HTTP or HTTPS URL."))
+            try:
+                validate_url(url.strip())
+            except DjangoValidationError:
+                raise ValidationError(_("Provide a valid HTTP or HTTPS URL."))
+            if not isinstance(new_tab, bool):
+                raise ValidationError(_("Open in new tab must be true or false."))
+            normalized.append({"name": name.strip(), "url": url.strip(), "open_in_new_tab": new_tab})
+        attrs[source] = normalized
+        return attrs
+
+
+class ProjectValidator(CustomLinksValidatorMixin, validators.ModelValidator):
+    custom_links = JSONField(required=False)
     anon_permissions = PgArrayField(required=False)
     public_permissions = PgArrayField(required=False)
     tags = TagsField(default=[], required=False)
@@ -304,7 +338,8 @@ class ProjectValidator(validators.ModelValidator):
 # Project Templates
 ######################################################
 
-class ProjectTemplateValidator(validators.ModelValidator):
+class ProjectTemplateValidator(CustomLinksValidatorMixin, validators.ModelValidator):
+    custom_links = JSONField(required=False)
     default_options = JSONField(required=False, label=_("Default options"))
     us_statuses = JSONField(required=False, label=_("User story's statuses"))
     points = JSONField(required=False, label=_("Points"))
