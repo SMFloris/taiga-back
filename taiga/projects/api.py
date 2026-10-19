@@ -21,6 +21,7 @@ from django_pglocks import advisory_lock
 from taiga.base import filters
 from taiga.base import exceptions as exc
 from taiga.base import response
+from taiga.hooks.github.services import normalize_commit_prefix
 from taiga.base.api import ModelCrudViewSet, ModelListViewSet, ModelUpdateRetrieveViewSet
 from taiga.base.api.mixins import ArchivedByProjectMixin, BlockedByProjectMixin, BlockeableSaveMixin, BlockeableDeleteMixin
 from taiga.base.api.permissions import AllowAnyPermission
@@ -360,7 +361,16 @@ class ProjectViewSet(LikedResourceMixin, HistoryResourceMixin,
         else:
             self.pre_conditions_on_save(project)
             self._raise_if_archived(project)
-            modules_config.config.update(request.DATA)
+            updates = dict(request.DATA)
+            if "github" in updates:
+                if not isinstance(updates["github"], dict):
+                    raise exc.BadRequest(_("GitHub configuration must be an object."))
+                github = dict(modules_config.config.get("github", {}))
+                github.update(updates["github"])
+                if "commit_prefix" in github:
+                    github["commit_prefix"] = normalize_commit_prefix(github["commit_prefix"])
+                updates["github"] = github
+            modules_config.config.update(updates)
             modules_config.save()
             return response.NoContent()
 

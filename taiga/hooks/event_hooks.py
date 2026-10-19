@@ -283,6 +283,8 @@ class BaseIssueEventHook(BaseEventHook):
 
 
 class BasePushEventHook(BaseEventHook):
+    reference_pattern = r"tg-(\d+)"
+
     def get_data(self):
         raise NotImplementedError
 
@@ -379,7 +381,7 @@ class BasePushEventHook(BaseEventHook):
             consumed_refs = []
 
             # Status changes
-            p = re.compile(r"tg-(\d+) +#([-\w]+)")
+            p = re.compile(self.reference_pattern + r" +#([-\w]+)")
             for m in p.finditer(commit['commit_message'].lower()):
                 ref = m.group(1)
                 status_slug = m.group(2)
@@ -393,7 +395,7 @@ class BasePushEventHook(BaseEventHook):
                 consumed_refs.append(ref)
 
             # Reference on commit
-            p = re.compile(r"tg-(\d+)")
+            p = re.compile(self.reference_pattern)
             for m in p.finditer(commit['commit_message'].lower()):
                 ref = m.group(1)
                 if ref in consumed_refs:

@@ -81,6 +81,11 @@ class IssueCommentEventHook(BaseGitHubEventHook, BaseIssueCommentEventHook):
 
 
 class PushEventHook(BaseGitHubEventHook, BasePushEventHook):
+    @property
+    def reference_pattern(self):
+        prefix = self.config.get("commit_prefix") or "TG"
+        return rf"(?<![\w-]){re.escape(prefix.lower())}-(\d+)"
+
     def get_data(self):
         result = []
         github_user = self.payload.get('sender', {})
