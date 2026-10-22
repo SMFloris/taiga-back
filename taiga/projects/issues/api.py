@@ -8,6 +8,7 @@
 #
 from django.utils.translation import gettext as _
 from django.http import HttpResponse
+from django.db.models import Prefetch
 
 from taiga.base import filters
 from taiga.base import exceptions as exc
@@ -22,6 +23,7 @@ from taiga.projects.milestones.models import Milestone
 from taiga.projects.mixins.by_ref import ByRefMixin
 from taiga.projects.mixins.promote import PromoteToUserStoryMixin
 from taiga.projects.models import Project, IssueStatus, Severity, Priority, IssueType
+from taiga.projects.userstories.models import UserStory
 from taiga.projects.notifications.mixins import AssignedToSignalMixin
 from taiga.projects.notifications.mixins import WatchedResourceMixin
 from taiga.projects.notifications.mixins import WatchersViewSetMixin
@@ -143,6 +145,17 @@ class IssueViewSet(AssignedToSignalMixin, OCCResourceMixin, VotedResourceMixin,
     def get_queryset(self):
         qs = super().get_queryset()
         qs = qs.select_related("owner", "assigned_to", "status", "project")
+        # Filter against the story's own project permissions, including stories
+        # moved to another project. Ignore issue search/status query parameters.
+        stories = filters.CanViewUsFilterBackend().filter_queryset(
+            self.request,
+            UserStory.objects.select_related("status", "project").order_by("ref", "id"),
+            None,
+        )
+        qs = qs.prefetch_related(Prefetch(
+            "generated_user_stories", queryset=stories,
+            to_attr="promoted_user_stories_attr",
+        ))
 
         include_attachments = "include_attachments" in self.request.QUERY_PARAMS
         qs = attach_extra_info(qs, user=self.request.user,

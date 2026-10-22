@@ -5,6 +5,8 @@
 #
 # Copyright (c) 2021-present Kaleidos INC
 
+from django.utils.translation import gettext as _
+
 from taiga.base.api import serializers
 from taiga.base.fields import Field, MethodField
 from taiga.base.neighbors import NeighborsSerializerMixin
@@ -43,6 +45,21 @@ class IssueListSerializer(VoteResourceSerializerMixin, WatchedResourceSerializer
     is_blocked = Field()
     blocked_note = Field()
     is_closed = Field()
+    promoted_user_stories = MethodField()
+
+    def get_promoted_user_stories(self, obj):
+        return [{
+            "id": story.id,
+            "ref": story.ref,
+            "subject": story.subject,
+            "project_slug": story.project.slug,
+            "status": story.status_id,
+            "status_extra_info": {
+                "name": _(story.status.name),
+                "color": story.status.color,
+                "is_closed": story.status.is_closed,
+            } if story.status else None,
+        } for story in getattr(obj, "promoted_user_stories_attr", [])]
 
 
 class IssueSerializer(IssueListSerializer):
